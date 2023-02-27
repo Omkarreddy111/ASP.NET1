@@ -1,0 +1,148 @@
+# # .NET Desktop
+# # Build and run tests for .NET Desktop or Windows classic desktop solutions.
+# # Add steps that publish symbols, save build artifacts, and more:
+# # https://docs.microsoft.com/azure/devops/pipelines/apps/windows/dot-net
+
+# trigger:
+# - master
+
+# pool:
+#   vmImage: 'VS2017-Win2016'
+
+# variables:
+#   solution: '**/*.sln'
+#   buildPlatform: 'Any CPU'
+#   buildConfiguration: 'Release'
+
+# steps:
+# - task: NuGetToolInstaller@0
+
+# - task: NuGetCommand@2
+#   inputs:
+#     restoreSolution: '$(solution)'
+
+# - task: VSBuild@1
+#   inputs:
+#     solution: '$(solution)'
+#     platform: '$(buildPlatform)'
+#     configuration: '$(buildConfiguration)'
+
+# - task: VSTest@2
+#   inputs:
+#     platform: '$(buildPlatform)'
+#     configuration: '$(buildConfiguration)'
+
+
+
+# ASP.NET Core (.NET Framework)
+# Build and test ASP.NET Core projects targeting the full .NET Framework.
+# Add steps that publish symbols, save build artifacts, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
+
+trigger:
+- master
+variables:
+  solution: '**/*.sln'
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+  #IISWebsiteName: 'ASP.Net Project'
+resources:
+  pipelines:
+      - pipeline: 'buildPipeline'
+        project: 'ASP.Net-Web-Application'  
+        source: 'ASP.Net-Web-Application-yaml-script'  
+        branch: 'ASPNetCoreTest'
+stages:
+  - stage: Build
+    displayName: Build ASP.NET Web App
+    jobs:
+      - job: Build
+        displayName: Build
+        pool:
+          vmImage: 'windows-latest'
+        steps:
+          - task: NuGetToolInstaller@1
+          - task: NuGetCommand@2
+            inputs:
+              restoreSolution: '$(solution)'
+          - task: DotNetCoreCLI@2
+            inputs:
+              command: 'build'
+              projects: 'AspNetCoreTests.Web/AspNetCoreTests.Web.csproj'
+              arguments: '/p:OutputPath=$(build.artifactstagingdirectory)'
+          # - task: ArchiveFiles@2
+          #   inputs:
+          #     rootFolderOrFile: '$(Build.ArtifactStagingDirectory)'
+          #     includeRootFolder: true
+          #     archiveType: 'zip'
+          #     archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+          #     replaceExistingArchive: true
+          - task: PublishBuildArtifacts@1
+            inputs:
+              PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+              ArtifactName: 'drop'
+              publishLocation: 'Container'
+
+
+  - stage: Deploy
+    displayName: Deploy ASP.NET Web App
+    dependsOn: Build
+    pool: 
+          vmImage: 'windows-latest'
+    jobs:
+      - deployment: Deploywebsite
+        displayName: Deploywebsite
+        environment: 'Windows-11.Kartheek' 
+        strategy:
+         runOnce: 
+            deploy:       
+             steps:
+                - checkout: none
+                - download: 'buildPipeline'
+                  
+               
+                - task: DownloadBuildArtifacts@1
+                  inputs:
+                    buildType: 'current'
+                    downloadType: 'single'
+                    artifactName: 'drop'
+                    downloadPath: '$(Build.ArtifactStagingDirectory)'
+                
+                # - task: IISWebAppManagementOnMachineGroup@0
+                #   inputs:
+                #     IISDeploymentType: 'IISWebsite'
+                #     ActionIISWebsite: 'StopWebsite'
+                #     StartStopWebsiteName: 'Default Web Site'
+                # - task: CopyFiles@2
+                #   inputs:
+                #     SourceFolder: '$(Build.ArtifactStagingDirectory)'
+                #     Contents: '**'
+                #     TargetFolder: 'C:\IISWebsite'
+                - task: IISWebAppManagementOnMachineGroup@0
+                  inputs:
+                    IISDeploymentType: 'IISWebsite'
+                    ActionIISWebsite: 'CreateOrUpdateWebsite'
+                    WebsiteName: 'Default Web Site'
+                    WebsitePhysicalPath: '%SystemDrive%\inetpub\wwwroot'
+                    WebsitePhysicalPathAuth: 'WebsiteUserPassThrough'
+                    # AddBinding: true
+                    # Bindings: 'http/All Unassigned:80:'
+                - task: IISWebAppDeploymentOnMachineGroup@0
+                  inputs:
+                    WebSiteName: 'Default Web Site'
+                    Package: '$(Build.ArtifactStagingDirectory)/drop'
+                    TakeAppOfflineFlag: true
+
+
+
+
+
+
+
+
+
+
+
+
+
+
